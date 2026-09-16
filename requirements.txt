@@ -1,0 +1,6 @@
+# Published release from https://github.com/sigma67/ytmusicapi
+ytmusicapi==1.12.3
+# https://github.com/yt-dlp/yt-dlp — resolves audio-only streams. [default] adds yt-dlp-ejs, which uses Node.js for YouTube's player challenges.
+yt-dlp[default]==2026.8.19
+# https://github.com/quodlibet/mutagen — writes title/artist/cover into downloaded .m4a files.
+mutagen==1.48.1

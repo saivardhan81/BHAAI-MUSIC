@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>BHAAI Music</title>
+<meta name="description" content="Search any song or paste a playlist link. BHAAI Music plays just the music, with its cover art, and keeps the songs you save on this computer.">
+<meta name="theme-color" content="#0c0b0e">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23f4b63f'/%3E%3Cpath d='M9 13v6m4.7-10v14m4.6-11v8M23 14v4' stroke='%231a1206' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Figtree:wght@400..700&display=swap">
+<link rel="stylesheet" href="/styles.css">
+<script src="/library.js" defer></script>
+<script src="/app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.6v12.8a1 1 0 0 0 1.53.85l10.2-6.4a1 1 0 0 0 0-1.7L9.53 4.75A1 1 0 0 0 8 5.6z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4.2" height="14" rx="1.2"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.2"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M5 6.3v11.4a1 1 0 0 0 1.56.83L15 12.83a1 1 0 0 0 0-1.66L6.56 5.47A1 1 0 0 0 5 6.3z"/><rect x="16.5" y="5.5" width="2.5" height="13" rx="1.1"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M19 6.3v11.4a1 1 0 0 1-1.56.83L9 12.83a1 1 0 0 1 0-1.66l8.44-5.7A1 1 0 0 1 19 6.3z"/><rect x="5" y="5.5" width="2.5" height="13" rx="1.1"/></symbol>
+  <symbol id="i-shuffle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h3.2c2 0 3.2.9 4.3 2.6l2.8 4.8c1.1 1.7 2.3 2.6 4.3 2.6H21M3 17h3.2c1.3 0 2.2-.4 3-1.2M14.6 8.2c.8-.8 1.7-1.2 3-1.2H21M18 4l3 3-3 3M18 14l3 3-3 3"/></symbol>
+  <symbol id="i-repeat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11V9.5A3.5 3.5 0 0 1 7.5 6H20M17 3l3 3-3 3M20 13v1.5a3.5 3.5 0 0 1-3.5 3.5H4M7 21l-3-3 3-3"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 20.2S3.2 15 3.2 9.1A4.6 4.6 0 0 1 12 7.1a4.6 4.6 0 0 1 8.8 2C20.8 15 12 20.2 12 20.2z"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 20h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-library" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 4v16M10 4v16M14.5 4.6l4.8 15"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-volume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4zM16 9a4.2 4.2 0 0 1 0 6M18.6 6.4a7.8 7.8 0 0 1 0 11.2"/></symbol>
+  <symbol id="i-queue" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h13M4 11h13M4 16h7M15 14.5v6l5-3z"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3A4 4 0 0 0 13 5.3l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="18.5" cy="12" r="1.8"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 19.5l1-4.2L15.8 5a2 2 0 0 1 2.9 0l.3.3a2 2 0 0 1 0 2.9L8.7 18.5zM13.8 7l3.2 3.2"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/></symbol>
+</svg>
+
+<div class="app">
+  <aside class="rail" aria-label="BHAAI Music">
+    <a class="brand" href="/" aria-label="BHAAI Music home"><span class="brand-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="brand-word">BHAAI<span>music</span></span></a>
+    <nav class="rail-nav" aria-label="Main">
+      <button class="nav-item" data-go="home"><svg class="i"><use href="#i-home"/></svg>Home</button>
+      <button class="nav-item" data-go="search"><svg class="i"><use href="#i-search"/></svg>Search</button>
+      <button class="nav-item" data-go="library"><svg class="i"><use href="#i-library"/></svg>Library</button>
+    </nav>
+    <div class="rail-section">
+      <div class="rail-head">
+        <p class="label">Your playlists</p>
+        <button class="icon-btn small" type="button" data-new-playlist aria-label="New playlist" title="New playlist"><svg class="i"><use href="#i-plus"/></svg></button>
+      </div>
+      <ul id="rail-playlists" class="rail-playlists"></ul>
+    </div>
+    <p class="rail-foot" id="storage-note">Songs you download stay on this computer.</p>
+  </aside>
+
+  <main id="main">
+    <header class="topbar">
+      <form id="search-form" class="search" role="search">
+        <svg class="i"><use href="#i-search"/></svg>
+        <label class="sr-only" for="query">Search songs and artists</label>
+        <input id="query" type="search" placeholder="Songs, artists, films…" maxlength="200" autocomplete="off">
+      </form>
+    </header>
+
+    <section id="view-home" class="view" aria-labelledby="hero-title">
+      <div class="hero">
+        <div class="hero-copy">
+          <p class="label">भाई · BHAAI Music</p>
+          <h1 id="hero-title">Just the song.<br><em>Nothing in between.</em></h1>
+          <p class="lede">Search any track and it plays with only its cover art — no video, no ads. Paste a playlist link to bring your whole collection over, and download songs to keep them on this computer.</p>
+          <form class="import-form" data-import>
+            <svg class="i"><use href="#i-link"/></svg>
+            <label class="sr-only" for="import-home">Playlist link</label>
+            <input id="import-home" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Paste a Spotify, Apple Music, or YouTube Music link" required>
+            <button class="btn accent" type="submit">Import</button>
+          </form>
+          <p class="hint" data-import-status role="status">Playlists, albums, and songs from Spotify, Apple Music, and YouTube Music. Playlists must be public.</p>
+        </div>
+        <div class="wall" id="wall" aria-hidden="true"></div>
+      </div>
+      <div id="shelves" class="shelves"></div>
+    </section>
+
+    <section id="view-search" class="view" hidden aria-labelledby="search-title">
+      <div class="view-head">
+        <p class="label" id="search-label">Search</p>
+        <h2 id="search-title" class="view-title">Find something to play</h2>
+      </div>
+      <div id="search-results"></div>
+    </section>
+
+    <section id="view-playlist" class="view" hidden aria-labelledby="playlist-title">
+      <div class="collection-head">
+        <div id="playlist-cover" class="collection-cover"></div>
+        <div class="collection-meta">
+          <p class="label" id="playlist-kind">Playlist</p>
+          <h2 id="playlist-title" class="view-title"></h2>
+          <p id="playlist-sub" class="muted"></p>
+          <div class="actions">
+            <button class="btn accent" id="playlist-play"><svg class="i fill"><use href="#i-play"/></svg>Play</button>
+            <button class="btn" id="playlist-shuffle"><svg class="i"><use href="#i-shuffle"/></svg>Shuffle</button>
+            <button class="btn" id="playlist-download"><svg class="i"><use href="#i-download"/></svg><span>Download all</span></button>
+            <button class="btn ghost neutral" id="playlist-rename" aria-label="Rename playlist" title="Rename"><svg class="i"><use href="#i-pencil"/></svg></button>
+            <button class="btn ghost" id="playlist-remove" aria-label="Delete playlist" title="Delete playlist"><svg class="i"><use href="#i-trash"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <div id="playlist-tracks"></div>
+    </section>
+
+    <section id="view-library" class="view" hidden aria-labelledby="library-title">
+      <div class="view-head">
+        <p class="label">Library</p>
+        <h2 id="library-title" class="view-title">Your music</h2>
+      </div>
+      <div class="library-bar">
+      <div class="tabs" role="tablist" aria-label="Library sections">
+        <button role="tab" id="tab-playlists" data-tab="playlists" aria-selected="true">Playlists</button>
+        <button role="tab" id="tab-favorites" data-tab="favorites" aria-selected="false">Loved songs</button>
+        <button role="tab" id="tab-downloads" data-tab="downloads" aria-selected="false">Downloads</button>
+      </div>
+      <button class="btn" type="button" data-new-playlist><svg class="i"><use href="#i-plus"/></svg>New playlist</button>
+      </div>
+      <form class="import-form compact" data-import>
+        <svg class="i"><use href="#i-link"/></svg>
+        <label class="sr-only" for="import-library">Playlist link</label>
+        <input id="import-library" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Paste a Spotify, Apple Music, or YouTube Music link" required>
+        <button class="btn accent" type="submit">Import</button>
+      </form>
+      <p class="hint" data-import-status role="status"></p>
+      <div id="library-content"></div>
+    </section>
+  </main>
+</div>
+
+<footer class="mini" id="mini" aria-label="Player">
+  <button class="mini-now" id="open-now" aria-label="Open now playing" disabled>
+    <span class="mini-art" id="mini-art"></span>
+    <span class="mini-text"><strong id="mini-title">Nothing playing</strong><span id="mini-artist">Pick a song to start</span></span>
+  </button>
+  <div class="mini-center">
+    <div class="transport">
+      <button class="icon-btn small" id="shuffle" aria-label="Shuffle" aria-pressed="false"><svg class="i"><use href="#i-shuffle"/></svg></button>
+      <button class="icon-btn" data-action="prev" aria-label="Previous"><svg class="i fill"><use href="#i-prev"/></svg></button>
+      <button class="play" data-action="toggle" aria-label="Play"><svg class="i fill"><use href="#i-play"/></svg></button>
+      <button class="icon-btn" data-action="next" aria-label="Next"><svg class="i fill"><use href="#i-next"/></svg></button>
+      <button class="icon-btn small" id="repeat" aria-label="Repeat: off"><svg class="i"><use href="#i-repeat"/></svg><b id="repeat-one" hidden>1</b></button>
+    </div>
+    <div class="scrub">
+      <span data-elapsed>0:00</span>
+      <input type="range" id="seek-mini" data-seek min="0" max="0" step="0.1" value="0" aria-label="Seek">
+      <span data-duration>0:00</span>
+    </div>
+  </div>
+  <div class="mini-right">
+    <button class="icon-btn small" id="mini-love" aria-label="Love this song" aria-pressed="false"><svg class="i"><use href="#i-heart"/></svg></button>
+    <svg class="i vol-icon" aria-hidden="true"><use href="#i-volume"/></svg>
+    <label class="sr-only" for="volume">Volume</label>
+    <input type="range" id="volume" min="0" max="1" step="0.01" value="0.85">
+  </div>
+</footer>
+
+<nav class="tabbar" aria-label="Main">
+  <button data-go="home"><svg class="i"><use href="#i-home"/></svg>Home</button>
+  <button data-go="search"><svg class="i"><use href="#i-search"/></svg>Search</button>
+  <button data-go="library"><svg class="i"><use href="#i-library"/></svg>Library</button>
+</nav>
+
+<div class="now" id="now" hidden role="dialog" aria-modal="true" aria-label="Now playing">
+  <div class="now-backdrop" id="now-backdrop" aria-hidden="true"></div>
+  <div class="now-inner">
+    <div class="now-bar">
+      <button class="icon-btn" id="close-now" aria-label="Close now playing"><svg class="i"><use href="#i-down"/></svg></button>
+      <p class="label" id="now-context">Now playing</p>
+      <button class="icon-btn" id="toggle-queue" aria-label="Show up next" aria-pressed="false"><svg class="i"><use href="#i-queue"/></svg></button>
+    </div>
+    <div class="now-stage">
+      <div class="now-player">
+        <div class="now-art" id="now-art"></div>
+        <div class="now-meta">
+          <div class="now-text">
+            <h2 id="now-title">Nothing playing</h2>
+            <p id="now-artist"></p>
+          </div>
+          <button class="icon-btn" id="now-love" aria-label="Love this song" aria-pressed="false"><svg class="i"><use href="#i-heart"/></svg></button>
+          <button class="icon-btn" id="now-download" aria-label="Download this song"><svg class="i"><use href="#i-download"/></svg></button>
+          <button class="icon-btn" id="now-add" aria-label="Add to playlist" aria-haspopup="menu"><svg class="i"><use href="#i-plus"/></svg></button>
+        </div>
+        <div class="scrub big">
+          <label class="sr-only" for="seek-now">Seek</label>
+          <input type="range" id="seek-now" data-seek min="0" max="0" step="0.1" value="0">
+          <div class="scrub-times"><span data-elapsed>0:00</span><span data-duration>0:00</span></div>
+        </div>
+        <div class="transport big">
+          <button class="icon-btn" data-action="prev" aria-label="Previous"><svg class="i fill"><use href="#i-prev"/></svg></button>
+          <button class="play" data-action="toggle" aria-label="Play"><svg class="i fill"><use href="#i-play"/></svg></button>
+          <button class="icon-btn" data-action="next" aria-label="Next"><svg class="i fill"><use href="#i-next"/></svg></button>
+        </div>
+      </div>
+      <aside class="upnext" id="upnext" aria-label="Up next">
+        <p class="label">Up next</p>
+        <ol id="upnext-list"></ol>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<div class="menu" id="menu" role="menu" hidden></div>
+
+<dialog class="sheet" id="name-dialog" aria-labelledby="name-dialog-title">
+  <form id="name-form">
+    <h2 id="name-dialog-title">New playlist</h2>
+    <label class="label" for="playlist-name">Playlist name</label>
+    <input id="playlist-name" maxlength="80" required autocomplete="off" spellcheck="false" placeholder="Late-night drive">
+    <div class="sheet-actions">
+      <button class="btn" type="button" id="name-cancel">Cancel</button>
+      <button class="btn accent" type="submit" id="name-submit">Create</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<audio id="audio" preload="auto"></audio>
+</body>
+</html>
