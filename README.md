@@ -61,6 +61,10 @@ yt-dlp needs a JavaScript runtime for YouTube's player challenges. BHAAI Music t
 
 Using yt-dlp to stream YouTube audio is outside YouTube's Terms of Service. BHAAI Music is meant for personal use on your own computer. Don't host it publicly.
 
+## Personal server (Oracle Cloud)
+
+`deploy/oracle/setup.sh` installs BHAAI Music on an Ubuntu server behind [Caddy](https://caddyserver.com), which adds HTTPS and a username and password. The app itself still listens only on `127.0.0.1`. Point a domain (a free `*.duckdns.org` name works) at the server, then run `sudo DOMAIN=yourname.duckdns.org bash deploy/oracle/setup.sh` from the cloned repository. Also allow TCP ports 80 and 443 in the instance's Oracle security list. Downloads are saved on the server in `~/Music/BHAAI Music`. YouTube often blocks cloud servers, so playback may fail there even when search works.
+
 ## Other providers
 
 The server still has the original Audius and Jamendo adapters (`/api/search?provider=audius|jamendo`, `/api/config`), but the redesigned interface only uses YouTube Music.
