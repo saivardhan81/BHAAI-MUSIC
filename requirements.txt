@@ -2,5 +2,7 @@
 ytmusicapi==1.12.3
 # https://github.com/yt-dlp/yt-dlp: finds audio-only streams. [default] adds yt-dlp-ejs, which uses Node.js for YouTube player challenges.
 yt-dlp[default]==2026.8.19
+# https://github.com/psf/requests: proxies audio streams and fetches Spotify / Apple Music pages
+requests==2.34.2
 # https://github.com/imageio/imageio-ffmpeg: a bundled ffmpeg for MP3 conversion (a system ffmpeg is used first when installed)
 imageio-ffmpeg==0.6.0
