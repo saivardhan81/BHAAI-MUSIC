@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>BHAAI Music</title>
-<meta name="description" content="Search any song or paste a playlist link. BHAAI Music plays just the music, with its cover art, and keeps the songs you save on this computer.">
+<meta name="description" content="Free music player. Search any song, make playlists that stay on your device, and paste a Spotify, Apple Music, or YouTube Music link to bring a playlist over. No account needed.">
 <meta name="theme-color" content="#0c0b0e">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23f4b63f'/%3E%3Cpath d='M9 13v6m4.7-10v14m4.6-11v8M23 14v4' stroke='%231a1206' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -53,7 +53,9 @@
       </div>
       <ul id="rail-playlists" class="rail-playlists"></ul>
     </div>
-    <p class="rail-foot" id="storage-note">Songs you download stay on this computer.</p>
+    <div class="rail-foot">
+      <p>Playlists are saved on this device. No account needed.</p>
+    </div>
   </aside>
 
   <main id="main">
@@ -70,7 +72,7 @@
         <div class="hero-copy">
           <p class="label">भाई · BHAAI Music</p>
           <h1 id="hero-title">Just the song.<br><em>Nothing in between.</em></h1>
-          <p class="lede">Search any track and it plays with only its cover art — no video, no ads. Paste a playlist link to bring your whole collection over, and download songs to keep them on this computer.</p>
+          <p class="lede">Search any track and it plays with just its cover art. Make playlists, paste a link to bring one over, and download songs as MP3. Everything stays on this device, free, with no account.</p>
           <form class="import-form" data-import>
             <svg class="i"><use href="#i-link"/></svg>
             <label class="sr-only" for="import-home">Playlist link</label>
@@ -102,7 +104,7 @@
           <div class="actions">
             <button class="btn accent" id="playlist-play"><svg class="i fill"><use href="#i-play"/></svg>Play</button>
             <button class="btn" id="playlist-shuffle"><svg class="i"><use href="#i-shuffle"/></svg>Shuffle</button>
-            <button class="btn" id="playlist-download"><svg class="i"><use href="#i-download"/></svg><span>Download all</span></button>
+            <button class="btn" id="playlist-download" title="Save every song as MP3 in one ZIP file"><svg class="i"><use href="#i-download"/></svg><span>Download all</span></button>
             <button class="btn ghost neutral" id="playlist-rename" aria-label="Rename playlist" title="Rename"><svg class="i"><use href="#i-pencil"/></svg></button>
             <button class="btn ghost" id="playlist-remove" aria-label="Delete playlist" title="Delete playlist"><svg class="i"><use href="#i-trash"/></svg></button>
           </div>
@@ -120,9 +122,10 @@
       <div class="tabs" role="tablist" aria-label="Library sections">
         <button role="tab" id="tab-playlists" data-tab="playlists" aria-selected="true">Playlists</button>
         <button role="tab" id="tab-favorites" data-tab="favorites" aria-selected="false">Loved songs</button>
-        <button role="tab" id="tab-downloads" data-tab="downloads" aria-selected="false">Downloads</button>
       </div>
-      <button class="btn" type="button" data-new-playlist><svg class="i"><use href="#i-plus"/></svg>New playlist</button>
+      <div class="library-actions">
+        <button class="btn" type="button" data-new-playlist><svg class="i"><use href="#i-plus"/></svg>New playlist</button>
+      </div>
       </div>
       <form class="import-form compact" data-import>
         <svg class="i"><use href="#i-link"/></svg>
@@ -156,6 +159,7 @@
     </div>
   </div>
   <div class="mini-right">
+    <button class="icon-btn small" id="mini-download" aria-label="Download MP3" title="Download MP3"><svg class="i"><use href="#i-download"/></svg></button>
     <button class="icon-btn small" id="mini-love" aria-label="Love this song" aria-pressed="false"><svg class="i"><use href="#i-heart"/></svg></button>
     <svg class="i vol-icon" aria-hidden="true"><use href="#i-volume"/></svg>
     <label class="sr-only" for="volume">Volume</label>
@@ -186,7 +190,7 @@
             <p id="now-artist"></p>
           </div>
           <button class="icon-btn" id="now-love" aria-label="Love this song" aria-pressed="false"><svg class="i"><use href="#i-heart"/></svg></button>
-          <button class="icon-btn" id="now-download" aria-label="Download this song"><svg class="i"><use href="#i-download"/></svg></button>
+          <button class="icon-btn" id="now-download" aria-label="Download MP3"><svg class="i"><use href="#i-download"/></svg></button>
           <button class="icon-btn" id="now-add" aria-label="Add to playlist" aria-haspopup="menu"><svg class="i"><use href="#i-plus"/></svg></button>
         </div>
         <div class="scrub big">
@@ -209,6 +213,17 @@
 </div>
 
 <div class="menu" id="menu" role="menu" hidden></div>
+
+<dialog class="sheet" id="confirm-dialog" aria-labelledby="confirm-title">
+  <form method="dialog">
+    <h2 id="confirm-title">Delete playlist?</h2>
+    <p class="muted" id="confirm-text"></p>
+    <div class="sheet-actions">
+      <button class="btn" type="submit" value="cancel">Cancel</button>
+      <button class="btn danger" type="submit" value="ok" id="confirm-ok">Delete</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog class="sheet" id="name-dialog" aria-labelledby="name-dialog-title">
   <form id="name-form">

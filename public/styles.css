@@ -61,7 +61,8 @@ body.playing .brand-bars i:nth-child(2){animation-delay:-.4s}body.playing .brand
 .rail-playlists .thumb{width:32px;height:32px;border-radius:6px}
 .rail-playlists span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rail-empty{padding:0 12px;font-size:13px;color:var(--faint)}
-.rail-foot{margin:0;padding:0 12px;font-size:12px;color:var(--faint)}
+.rail-foot{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:0 12px;font-size:12px;color:var(--faint)}
+.rail-foot p{margin:0}
 
 main{min-width:0;padding:0 var(--gutter) 48px}
 .topbar{position:sticky;top:0;z-index:5;padding:18px 0 14px;background:linear-gradient(var(--ground) 70%,transparent)}
@@ -156,9 +157,8 @@ main{min-width:0;padding:0 var(--gutter) 48px}
 .t-actions .icon-btn{width:36px;height:36px;color:var(--faint)}
 .t-actions .icon-btn .i{width:19px;height:19px}
 .t-actions .icon-btn:hover{color:var(--ink)}
-.t-actions .icon-btn[aria-pressed="true"],.t-actions .icon-btn.done{color:var(--marigold)}
+.t-actions .icon-btn[aria-pressed="true"]{color:var(--marigold)}
 .t-time{font-size:13.5px;color:var(--faint);text-align:right;font-variant-numeric:tabular-nums}
-.dl-ring{--p:0;width:19px;height:19px;border-radius:50%;background:conic-gradient(var(--marigold) calc(var(--p)*1%),var(--line) 0);-webkit-mask:radial-gradient(circle,transparent 5.5px,#000 6px);mask:radial-gradient(circle,transparent 5.5px,#000 6px)}
 .list-note{padding:6px 10px 14px;color:var(--muted);font-size:14px}
 .empty{display:flex;flex-direction:column;align-items:flex-start;gap:10px;max-width:460px;padding:36px 10px}
 .empty strong{font:700 22px/1.2 var(--display);letter-spacing:-.02em}
@@ -234,7 +234,6 @@ body:not(.playing) .now-art{transform:scale(.9)}
 .now-text h2{margin:0;font:700 clamp(22px,2.6vw,28px)/1.15 var(--display);letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .now-text p{margin:2px 0 0;color:rgb(242 238 232/.7);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .now-meta .icon-btn{color:rgb(242 238 232/.8)}
-.now-meta .icon-btn.done{color:var(--marigold)}
 .scrub.big{flex-direction:column;align-items:stretch;gap:4px;max-width:none;color:rgb(242 238 232/.6)}
 .scrub.big input{flex:none;height:20px}
 .scrub.big input::-webkit-slider-runnable-track{height:6px}
@@ -286,10 +285,15 @@ body:not(.playing) .now-art{transform:scale(.9)}
 .sheet input:focus{border-color:var(--marigold)}
 .sheet-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}
 
-.folder-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:14px 16px;margin-bottom:12px;border-radius:14px;background:var(--surface);border:1px solid var(--line)}
-.folder-text{display:flex;flex-direction:column;gap:4px;min-width:0}
-.folder-path{font:500 13.5px/1.4 ui-monospace,"Cascadia Mono",Consolas,monospace;color:var(--ink);overflow-wrap:anywhere}
-.folder-text .muted{font-size:13px}
+.library-actions{display:flex;align-items:center;gap:6px}
+.btn.danger{background:var(--danger);color:#1f0a07}
+.btn.danger:hover:not(:disabled){background:#ff9486}
+.sheet p.muted{margin:-4px 0 4px}
+
+/* ---------- MP3 download buttons ---------- */
+.t-actions .icon-btn.done,.now-meta .icon-btn.done,.mini-right .icon-btn.done{color:var(--marigold)}
+.dl-spin{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--marigold);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 
 /* ---------- responsive ---------- */
 @media (max-width:1100px){

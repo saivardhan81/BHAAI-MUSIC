@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 import playlist_sources as sources
-from youtube_bridge import normalize_track
+from music import normalize_track
 
 
 def spotify_html(entity):

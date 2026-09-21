@@ -16,9 +16,9 @@ const slim=t=>({id:t.id,provider:'youtube',title:t.title,artist:t.artist,album:t
 
 const state={
   view:'home',query:'',results:[],searching:false,searchError:'',
-  shelves:null,shelvesError:'',playlist:null,playlists:[],libraryTab:'playlists',
+  shelves:null,shelvesError:'',libraryTab:'playlists',
+  playlists:[],playlist:null,
   favorites:load('svara-favorites',[]).filter(valid),history:load('svara-history',[]).filter(valid),
-  offline:new Map(),downloading:new Map(),downloadFolder:'',
   queue:[],original:[],index:-1,context:'',shuffle:false,repeat:'off',
 };
 
@@ -45,34 +45,21 @@ const time=s=>{s=Number(s);if(!Number.isFinite(s)||s<0)return '0:00';s=Math.floo
 const longTime=s=>{const m=Math.round(s/60);return m<60?m+' min':Math.floor(m/60)+' hr '+(m%60)+' min';};
 const songs=n=>n+(n===1?' song':' songs');
 const sized=(url,size)=>typeof url==='string'&&url.startsWith('https://')?url.replace(/=w\d+-h\d+/,`=w${size}-h${size}`):'';
-const artSrc=(track,size)=>lib.artURL(sized(size>300?track.art:(track.thumb||track.art),size));
+const artSrc=(track,size)=>sized(size>300?track.art:(track.thumb||track.art),size);
 const shuffled=list=>{const copy=[...list];for(let i=copy.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[copy[i],copy[j]]=[copy[j],copy[i]];}return copy;};
 const current=()=>state.queue[state.index]||null;
 const loved=t=>state.favorites.some(f=>f.id===t.id);
-
-// Downloaded songs are files on disk; their cover is served locally so it shows without internet.
-const offlineCover=id=>state.offline.get(id)?.cover?lib.downloads.coverURL(id):'';
-
-async function api(path,{timeout=25000}={}) {
-  let response;
-  try {response=await fetch(path,{signal:AbortSignal.timeout(timeout)});}
-  catch(error) {throw new Error(error.name==='TimeoutError'?'That took too long. Please try again.':'BHAAI Music’s server isn’t running. Start it with Start-Windows.bat, then refresh.');}
-  const data=await response.json().catch(()=>({}));
-  if(!response.ok) throw new Error(data.error||'Something went wrong. Please try again.');
-  return data;
-}
 
 let toastTimer;
 function toast(text,ms=3400) {
   const box=$('toast');box.textContent=text;box.hidden=false;
   clearTimeout(toastTimer);toastTimer=setTimeout(()=>{box.hidden=true;},ms);
 }
-
 function placeholder(title) {return h('div',{class:'ph',text:(String(title||'').trim().charAt(0)||'♪').toUpperCase()});}
 function cover(item,size) {
-  const src=(item.id&&offlineCover(item.id))||artSrc(item,size);
+  const src=artSrc(item,size);
   if(!src) return placeholder(item.title);
-  const img=h('img',{src,alt:'',loading:'lazy',decoding:'async'});
+  const img=h('img',{src,alt:'',loading:'lazy',decoding:'async',referrerpolicy:'no-referrer'});
   img.addEventListener('error',()=>img.replaceWith(placeholder(item.title)),{once:true});
   return img;
 }
@@ -122,30 +109,60 @@ function toggleLove(track) {
   toast(on?'Removed from loved songs':'Added to loved songs');
   if(state.view==='library'&&state.libraryTab==='favorites') renderLibrary();
 }
-function downloadButton(track) {
-  const button=h('button',{class:'icon-btn','data-dl':track.id,type:'button'});
+
+/* ---------- MP3 downloads (saved by the browser, usually to Downloads) ---------- */
+const downloads=new Map(); // song id -> 'working' | 'done' (this visit only; the files live on the device)
+function downloadButton(track,extraClass='') {
+  const button=h('button',{class:'icon-btn '+extraClass,'data-dl':track.id,type:'button'});
   paintDownload(button);
-  button.addEventListener('click',event=>{event.stopPropagation();download(track);});
+  button.addEventListener('click',event=>{event.stopPropagation();downloadMP3(track);});
   return button;
 }
 function paintDownload(button) {
-  const id=button.dataset.dl,progress=state.downloading.get(id),done=state.offline.has(id);
-  button.classList.toggle('done',done);button.replaceChildren();
-  if(done) {button.append(icon('check'));button.setAttribute('aria-label','Downloaded');}
-  else if(progress!=null) {const ring=h('span',{class:'dl-ring'});ring.style.setProperty('--p',progress);button.append(ring);button.setAttribute('aria-label',`Downloading, ${progress}%`);}
-  else {button.append(icon('download'));button.setAttribute('aria-label','Download for offline listening');}
+  const status=downloads.get(button.dataset.dl);
+  button.classList.toggle('done',status==='done');
+  button.replaceChildren(status==='working'?h('span',{class:'dl-spin','aria-hidden':'true'}):icon(status==='done'?'check':'download'));
+  const label=status==='working'?'Preparing MP3…':status==='done'?'Saved as MP3 (download again)':'Download MP3';
+  button.setAttribute('aria-label',label);button.title=label;
 }
 const refreshDownload=id=>document.querySelectorAll(`[data-dl="${id}"]`).forEach(paintDownload);
+async function downloadMP3(track,{quiet=false}={}) {
+  if(downloads.get(track.id)==='working') return true;
+  downloads.set(track.id,'working');refreshDownload(track.id);
+  if(!quiet) toast(`Preparing “${track.title}” as MP3…`);
+  let ok=true;
+  try {
+    const name=await lib.downloadMP3(slim(track));
+    downloads.set(track.id,'done');
+    if(!quiet) toast(`Saved “${name}”`);
+  } catch(error) {
+    downloads.delete(track.id);ok=false;
+    if(!quiet) toast(error.message,5000);
+  }
+  refreshDownload(track.id);
+  return ok;
+}
+// Download all: one ZIP of MP3s. It appears in the browser's downloads at once and grows as each song is converted.
+let downloadAllCooldown=0;
+function downloadAll(playlist) {
+  if(!playlist.tracks.length||Date.now()<downloadAllCooldown) return;
+  downloadAllCooldown=Date.now()+4000;paintDownloadAll();setTimeout(paintDownloadAll,4100);
+  lib.downloadPlaylistZip(playlist,message=>toast(message,6000));
+  const minutes=Math.max(1,Math.round(playlist.tracks.length*4/60));
+  toast(`Downloading “${playlist.title}” as a ZIP of ${songs(playlist.tracks.length)}. Watch your browser’s downloads: it grows as songs are converted (about ${minutes} min).`,8000);
+}
+function paintDownloadAll() {
+  const p=state.playlist;if(!p)return;
+  $('playlist-download').disabled=!p.tracks.length||Date.now()<downloadAllCooldown;
+}
 
-function trackList(tracks,{context='',removable=false,playlist=null}={}) {
+function trackList(tracks,{context='',playlist=null}={}) {
   const list=h('div',{class:'tracks',role:'list'});
   tracks.forEach((track,i)=>{
     const play=()=>playCollection(tracks,i,context);
-    const actions=h('div',{class:'t-actions'},loveButton(track));
-    if(removable) actions.append(h('button',{class:'icon-btn',type:'button','aria-label':'Delete download: '+track.title,onclick:event=>{event.stopPropagation();removeDownload(track);}},icon('trash')));
-    else actions.append(downloadButton(track));
-    actions.append(h('button',{class:'icon-btn',type:'button','aria-label':'More options: '+track.title,'aria-haspopup':'menu',
-      onclick:event=>{event.stopPropagation();openTrackMenu(event.currentTarget,track,playlist);}},icon('more',true)));
+    const actions=h('div',{class:'t-actions'},loveButton(track),downloadButton(track),
+      h('button',{class:'icon-btn',type:'button','aria-label':'More options: '+track.title,'aria-haspopup':'menu',
+        onclick:event=>{event.stopPropagation();openTrackMenu(event.currentTarget,track,playlist);}},icon('more',true)));
     list.append(h('div',{class:'track'+(current()?.id===track.id?' current':''),role:'listitem',tabindex:'0','data-track':track.id,'aria-label':`Play ${track.title} by ${track.artist}`,
       onclick:play,onkeydown:event=>{if(event.key==='Enter'&&event.target===event.currentTarget)play();}},
       h('div',{class:'num'},h('span',{text:String(i+1)}),icon('play',true)),
@@ -156,6 +173,9 @@ function trackList(tracks,{context='',removable=false,playlist=null}={}) {
       h('span',{class:'t-time',text:time(track.duration)})));
   });
   return list;
+}
+function loadingRows(label) {
+  return h('div',{class:'tracks loading-rows','aria-busy':'true','aria-label':label},Array.from({length:8},()=>h('div',{class:'track'},h('div'),h('div',{class:'thumb'}),h('div',{class:'t-main'},h('div',{class:'bar',style:'width:60%'})),h('div'),h('div'),h('div'))));
 }
 function markCurrentRows() {
   const id=current()?.id;
@@ -172,7 +192,7 @@ function card({title,sub,item,onclick,label,media}) {
 /* ---------- home ---------- */
 async function loadShelves() {
   state.shelves=null;state.shelvesError='';if(state.view==='home')renderHome();
-  const results=await Promise.allSettled(SHELVES.map(s=>api('/api/search?'+new URLSearchParams({provider:'youtube',q:s.query}),{timeout:40000})));
+  const results=await Promise.allSettled(SHELVES.map(s=>lib.search(s.query)));
   state.shelves=SHELVES.map((s,i)=>({...s,tracks:results[i].status==='fulfilled'?results[i].value.tracks.slice(0,20):[]})).filter(s=>s.tracks.length);
   if(!state.shelves.length) state.shelvesError=results.find(r=>r.status==='rejected')?.reason?.message||'Couldn’t load music right now.';
   fillWall();
@@ -186,13 +206,11 @@ function shelf(title,tracks,{context=title,more}={}) {
 function renderHome() {
   const box=$('shelves');box.replaceChildren();
   if(state.history.length) box.append(shelf('Recently played',state.history.slice(0,20)));
-  if(state.offline.size) box.append(shelf('Downloaded to this computer',[...state.offline.values()].map(r=>r.track).slice(0,20),{context:'Downloads',more:()=>{state.libraryTab='downloads';go('library');}}));
   if(state.shelves===null) {
     for(const s of SHELVES.slice(0,2)) box.append(h('section',{class:'shelf'},h('div',{class:'shelf-head'},h('h3',{text:s.title})),
       h('div',{class:'shelf-row'},Array.from({length:7},()=>h('div',{class:'card skeleton','aria-hidden':'true'},h('div',{class:'card-art'}),h('span',{class:'card-title'}))))));
   } else if(state.shelvesError) {
-    box.append(empty('Can’t reach the music service',state.shelvesError+(state.offline.size?' Your downloads still play.':''),
-      h('button',{class:'btn',type:'button',onclick:loadShelves},'Try again')));
+    box.append(empty('Can’t reach the music service',state.shelvesError,h('button',{class:'btn',type:'button',onclick:loadShelves},'Try again')));
   } else for(const s of state.shelves) box.append(shelf(s.title,s.tracks,{more:()=>{$('query').value=s.query;runSearch(s.query);}}));
 }
 function fillWall() {
@@ -201,7 +219,7 @@ function fillWall() {
   wall.replaceChildren();
   for(let c=0;c<3;c++) {
     const pick=tracks.length>=6?tracks.filter((_,i)=>i%3===c).slice(0,6):[];
-    const tiles=pick.length?pick.map(t=>h('div',{class:'tile'},h('img',{src:artSrc(t,480),alt:'',decoding:'async'}))):Array.from({length:5},()=>h('div',{class:'tile blank'}));
+    const tiles=pick.length?pick.map(t=>h('div',{class:'tile'},h('img',{src:artSrc(t,480),alt:'',decoding:'async',referrerpolicy:'no-referrer'}))):Array.from({length:5},()=>h('div',{class:'tile blank'}));
     // Tiles repeat twice so the drift animation loops without a seam.
     wall.append(h('div',{class:'wall-col'},tiles,tiles.map(t=>t.cloneNode(true))));
   }
@@ -217,7 +235,7 @@ async function runSearch(query,{push=true}={}) {
   if(!query) return;
   const id=++searchSequence;
   try {
-    const data=await api('/api/search?'+new URLSearchParams({provider:'youtube',q:query}),{timeout:40000});
+    const data=await lib.search(query);
     if(id!==searchSequence) return;
     state.results=data.tracks||[];
   } catch(error) {
@@ -236,18 +254,15 @@ function renderSearch() {
       h('div',{class:'tabs'},SUGGESTIONS.map(s=>h('button',{type:'button',onclick:()=>{$('query').value=s;runSearch(s);}},s))));
     return;
   }
-  if(state.searching) {
-    box.append(h('div',{class:'tracks loading-rows','aria-busy':'true','aria-label':'Searching'},Array.from({length:8},()=>h('div',{class:'track'},h('div'),h('div',{class:'thumb'}),h('div',{class:'t-main'},h('div',{class:'bar',style:'width:60%'})),h('div'),h('div'),h('div')))));
-    return;
-  }
+  if(state.searching) {box.append(loadingRows('Searching'));return;}
   if(state.searchError) {box.append(empty('Search didn’t work',state.searchError,h('button',{class:'btn',type:'button',onclick:()=>runSearch(state.query)},'Try again')));return;}
   if(!state.results.length) {box.append(empty('No songs found','Check the spelling, or try the artist or film name instead.'));return;}
   box.append(trackList(state.results,{context:`Search: ${state.query}`}));
 }
 
-/* ---------- playlists ---------- */
+/* ---------- playlists (saved in this browser) ---------- */
 const SOURCES={mine:'Your playlist',spotify:'Imported from Spotify',apple:'Imported from Apple Music',youtube:'Imported from YouTube Music'};
-function openPlaylist(playlist) {state.playlist=playlist;go('playlist');}
+function openPlaylist(playlist,{push=true}={}) {state.playlist=playlist;go('playlist',{push});}
 // A playlist without its own artwork shows its first song's cover, or a 2×2 grid once it has four different covers.
 function playlistCover(p,size) {
   if(p.art) return cover({title:p.title,art:p.art},size);
@@ -266,12 +281,6 @@ function renderPlaylist() {
   paintDownloadAll();
   $('playlist-tracks').replaceChildren(p.tracks.length?trackList(p.tracks,{context:p.title,playlist:p}):
     empty('This playlist is empty','Search for a song, tap ⋯ next to it, and choose this playlist.',h('button',{class:'btn',type:'button',onclick:()=>go('search',{focus:true})},icon('search'),'Find songs')));
-}
-function paintDownloadAll() {
-  const p=state.playlist,button=$('playlist-download');if(!p)return;
-  const done=p.tracks.filter(t=>state.offline.has(t.id)).length;
-  button.querySelector('span').textContent=downloadAllRunning===p.id?`Downloading ${done} of ${p.tracks.length}`:p.tracks.length&&done===p.tracks.length?'All downloaded':done?`Download remaining ${p.tracks.length-done}`:'Download all';
-  button.disabled=downloadAllRunning===p.id||done===p.tracks.length;
 }
 async function savePlaylist(playlist) {
   playlist.updatedAt=Date.now();
@@ -293,6 +302,12 @@ function finishName(name) {
   const resolve=resolveName;resolveName=null;
   if($('name-dialog').open) $('name-dialog').close();
   resolve?.(name);
+}
+function askConfirm({title,text,action}) {
+  const dialog=$('confirm-dialog');
+  $('confirm-title').textContent=title;$('confirm-text').textContent=text;$('confirm-ok').textContent=action;
+  dialog.returnValue='';closeMenu();dialog.showModal();
+  return new Promise(resolve=>dialog.addEventListener('close',()=>resolve(dialog.returnValue==='ok'),{once:true}));
 }
 async function createPlaylist(firstTrack=null) {
   const name=await askName({title:'New playlist',action:'Create'});
@@ -318,6 +333,14 @@ async function removeFromPlaylist(playlist,track) {
   playlist.tracks=playlist.tracks.filter(t=>t.id!==track.id);
   await savePlaylist(playlist);toast(`Removed “${track.title}” from “${playlist.title}”`);
 }
+async function removePlaylist(playlist) {
+  const ok=await askConfirm({title:'Delete playlist?',action:'Delete',text:`“${playlist.title}” will be removed from this browser. This can’t be undone.`});
+  if(!ok) return;
+  try {await lib.playlists.remove(playlist.id);} catch {}
+  state.playlists=state.playlists.filter(p=>p.id!==playlist.id);
+  toast(`Deleted “${playlist.title}”`);
+  state.libraryTab='playlists';go('library');
+}
 
 /* ---------- track menu ---------- */
 let menuAnchor=null;
@@ -325,7 +348,9 @@ function openTrackMenu(anchor,track,inPlaylist=null) {
   if(menuAnchor===anchor) {closeMenu();return;}
   const menu=$('menu');menu.replaceChildren();
   const item=(label,iconName,onclick,extra='')=>h('button',{type:'button',role:'menuitem',class:extra,onclick:()=>{closeMenu();onclick();}},icon(iconName,iconName==='more'),h('span',{text:label}));
-  if(inPlaylist) menu.append(item(`Remove from “${inPlaylist.title}”`,'trash',()=>removeFromPlaylist(inPlaylist,track),'danger'),h('hr'));
+  menu.append(item(downloads.get(track.id)==='working'?'Preparing MP3…':'Download MP3','download',()=>downloadMP3(track)));
+  if(inPlaylist) menu.append(item(`Remove from “${inPlaylist.title}”`,'trash',()=>removeFromPlaylist(inPlaylist,track),'danger'));
+  menu.append(h('hr'));
   menu.append(h('p',{class:'menu-label'},'Add to playlist'),item('New playlist…','plus',()=>createPlaylist(track)));
   for(const p of state.playlists) {
     if(p.id===inPlaylist?.id) continue;
@@ -347,24 +372,14 @@ function closeMenu() {
   const anchor=menuAnchor;menuAnchor=null;
   if(document.activeElement===document.body||$('menu').contains(document.activeElement)) anchor.focus({preventScroll:true});
 }
-let downloadAllRunning=null;
-async function downloadAll(playlist) {
-  if(downloadAllRunning) {toast('Another playlist is already downloading.');return;}
-  downloadAllRunning=playlist.id;paintDownloadAll();
-  const pending=playlist.tracks.filter(t=>!state.offline.has(t.id));let failed=0;
-  const worker=async()=>{while(pending.length){if(!(await download(pending.shift(),{quiet:true})))failed++;if(state.playlist?.id===playlist.id)paintDownloadAll();}};
-  await Promise.all([worker(),worker()]);
-  downloadAllRunning=null;if(state.view==='playlist')paintDownloadAll();
-  toast(failed?`Downloaded “${playlist.title}”, but ${songs(failed)} couldn’t be saved.`:`“${playlist.title}” is ready to play offline.`);
-}
 async function importPlaylist(form) {
   const input=form.querySelector('input'),button=form.querySelector('button'),status=form.nextElementSibling;
   const link=input.value.trim();if(!link)return;
   const external=/spotify|music\.apple\.com|itunes\.apple\.com/i.test(link);
   button.disabled=true;status.className='hint';
-  status.textContent=external?'Finding these songs on YouTube Music… big playlists take a minute or two.':'Opening your playlist… big playlists can take up to a minute.';
+  status.textContent=external?'Finding these songs on YouTube Music… big playlists take up to a minute.':'Opening your playlist… big playlists can take a little while.';
   try {
-    const data=await api('/api/playlist?'+new URLSearchParams({url:link}),{timeout:200000});
+    const data=await lib.readPlaylist(link);
     if(!data.tracks?.length) throw new Error(data.missingCount?'None of these songs could be found on YouTube Music.':'That playlist has no playable songs.');
     const playlist={id:data.id,source:data.source||'youtube',title:data.title,author:data.author||'',art:data.art||'',tracks:data.tracks.map(slim),addedAt:Date.now()};
     const existing=state.playlists.find(p=>p.id===playlist.id);
@@ -377,12 +392,6 @@ async function importPlaylist(form) {
     openPlaylist(playlist);
   } catch(error) {status.className='hint error';status.textContent=error.message;}
   finally {button.disabled=false;}
-}
-async function removePlaylist(playlist) {
-  try {await lib.playlists.remove(playlist.id);} catch {}
-  state.playlists=state.playlists.filter(p=>p.id!==playlist.id);
-  toast(`Deleted “${playlist.title}”. Downloaded songs stay in Downloads.`);
-  state.libraryTab='playlists';go('library');
 }
 function renderRail() {
   const list=$('rail-playlists');list.replaceChildren();
@@ -400,74 +409,10 @@ function renderLibrary() {
     box.append(h('div',{class:'grid-cards'},newCard,state.playlists.map(p=>card({title:p.title,sub:`${songs(p.tracks.length)}${p.source==='mine'?'':' · '+(p.source==='spotify'?'Spotify':p.source==='apple'?'Apple Music':'YouTube Music')}`,
       media:playlistCover(p,480),label:`Open ${p.title}`,onclick:()=>openPlaylist(p)}))));
     if(!state.playlists.length) box.append(h('p',{class:'list-note',text:'Make your own playlist, or paste a Spotify, Apple Music, or YouTube Music link above to import one.'}));
-  } else if(state.libraryTab==='favorites') {
+  } else {
     if(!state.favorites.length) box.append(empty('No loved songs yet','Tap the heart on any song to keep it here.'));
     else box.append(h('p',{class:'list-note',text:songs(state.favorites.length)}),trackList(state.favorites,{context:'Loved songs'}));
-  } else {
-    const records=[...state.offline.values()].sort((a,b)=>b.savedAt-a.savedAt);
-    const bytes=records.reduce((sum,r)=>sum+(r.size||0),0);
-    box.append(h('div',{class:'folder-bar'},
-      h('div',{class:'folder-text'},
-        h('span',{class:'label',text:'Saved as .m4a files in'}),
-        h('code',{class:'folder-path',text:state.downloadFolder||'your Music folder'}),
-        records.length?h('span',{class:'muted',text:`${songs(records.length)} · ${(bytes/1048576).toFixed(0)} MB`}):null),
-      h('button',{class:'btn',type:'button',onclick:openDownloadFolder},icon('library'),'Open folder')));
-    if(!records.length) box.append(empty('Nothing downloaded yet','Tap the download arrow on a song, or “Download all” on a playlist. Each song is saved as a normal music file with its title, artist and cover, and plays without an internet connection.'));
-    else box.append(trackList(records.map(r=>r.track),{context:'Downloads',removable:true}));
   }
-}
-async function download(track,{quiet=false}={}) {
-  if(state.offline.has(track.id)) {if(!quiet)toast('Already downloaded. Manage downloads in Library.');return true;}
-  if(state.downloading.has(track.id)) return true;
-  state.downloading.set(track.id,0);refreshDownload(track.id);
-  try {
-    const result=await lib.downloads.save(slim(track),progress=>{state.downloading.set(track.id,progress);refreshDownload(track.id);});
-    state.offline.set(track.id,result.song);state.downloadFolder=result.folder||state.downloadFolder;
-    if(!quiet) toast(`Saved “${track.title}” to ${shortFolder()}`);
-    return true;
-  } catch(error) {
-    if(!quiet) toast(error.message);
-    return false;
-  } finally {
-    state.downloading.delete(track.id);refreshDownload(track.id);updateStorageNote();
-    if(state.view==='playlist'&&!quiet) paintDownloadAll();
-    if(state.view==='library'&&state.libraryTab==='downloads'&&!quiet) renderLibrary();
-  }
-}
-async function removeDownload(track) {
-  try {await lib.downloads.remove(track.id);} catch(error) {toast(error.message);return;}
-  state.offline.delete(track.id);
-  refreshDownload(track.id);updateStorageNote();toast(`Deleted “${track.title}” from ${shortFolder()}`);
-  if(state.view==='library') renderLibrary();
-}
-// "C:\Users\saiva\Music\BHAAI Music" -> "Music\BHAAI Music"
-const shortFolder=()=>state.downloadFolder.split(/[\\/]/).filter(Boolean).slice(-2).join(state.downloadFolder.includes('\\')?'\\':'/')||'your Music folder';
-function updateStorageNote() {
-  $('storage-note').textContent=state.offline.size?`${songs(state.offline.size)} saved in ${shortFolder()}`:`Downloads are saved to ${shortFolder()}.`;
-}
-async function openDownloadFolder() {
-  try {await lib.downloads.openFolder();} catch(error) {toast(error.message);}
-}
-async function refreshDownloads() {
-  const data=await lib.downloads.list();
-  state.downloadFolder=data.folder||'';
-  state.offline=new Map(data.songs.map(song=>[song.id,song]));
-}
-// Older versions kept downloads inside the browser. Save each one to the folder again, then free the browser copy.
-async function moveBrowserDownloads() {
-  const ids=await lib.legacy.all();
-  if(!ids.length||!navigator.onLine) return;
-  toast(`Moving ${songs(ids.length)} from browser storage to ${shortFolder()}…`,5000);
-  let moved=0;
-  for(const id of ids) {
-    try {
-      const record=await lib.legacy.get(id);
-      if(record?.track&&(await download(record.track,{quiet:true}))) {await lib.legacy.remove(id);moved++;}
-    } catch {}
-  }
-  updateStorageNote();
-  if(state.view==='library') renderLibrary();
-  toast(moved===ids.length?`Moved ${songs(moved)} to ${shortFolder()}`:`Moved ${moved} of ${songs(ids.length)}. The rest will be tried again next time.`,5000);
 }
 
 /* ---------- player ---------- */
@@ -480,15 +425,17 @@ function playCollection(tracks,start,context='') {
   else state.queue=[...tracks];
   playAt(start);
 }
-async function playAt(index) {
+function playAt(index) {
   const track=state.queue[index];if(!track)return;
   state.index=index;const sequence=++loadSequence;
-  audio.src=state.offline.has(track.id)?lib.downloads.audioURL(track.id):'/api/stream/youtube/'+track.id;
+  // The server finds the song's audio-only track and streams it; the page only shows the poster.
+  audio.src='/api/stream/'+track.id;
   document.body.classList.add('buffering');
   setScrub(0,track.duration||0);
   showTrack(track);addHistory(track);markCurrentRows();
-  try {await audio.play();}
-  catch(error) {if(sequence===loadSequence&&error.name==='NotAllowedError')toast('Press play to start listening.');}
+  audio.play().catch(error=>{
+    if(sequence===loadSequence&&error.name==='NotAllowedError') {document.body.classList.remove('buffering');toast('Press play to start listening.');}
+  });
 }
 function togglePlay() {
   if(!current()) {const first=state.shelves?.[0]?.tracks;if(first)playCollection(first,0,state.shelves[0].title);return;}
@@ -533,17 +480,19 @@ function showTrack(track) {
   const backdrop=$('now-backdrop');backdrop.replaceChildren();
   const big=cover(track,1200);if(big.tagName==='IMG')backdrop.append(big);
   for(const id of ['mini-love','now-love']) {$(id).dataset.love=track.id;paintLove($(id));}
-  $('now-download').dataset.dl=track.id;paintDownload($('now-download'));
+  for(const id of ['mini-download','now-download']) {$(id).dataset.dl=track.id;paintDownload($(id));}
   document.title=`${track.title} · ${track.artist}`;
-  extractTint(offlineCover(track.id)||artSrc(track,240));
+  extractTint(artSrc(track,240));
   renderUpNext();
   if('mediaSession' in navigator) {
-    try {navigator.mediaSession.metadata=new MediaMetadata({title:track.title,artist:track.artist,album:track.album||'',artwork:track.art?[{src:location.origin+artSrc(track,512),sizes:'512x512',type:'image/jpeg'}]:[]});} catch {}
+    try {navigator.mediaSession.metadata=new MediaMetadata({title:track.title,artist:track.artist,album:track.album||'',artwork:track.art?[{src:artSrc(track,512),sizes:'512x512',type:'image/jpeg'}]:[]});} catch {}
   }
 }
+// Reading pixels needs CORS on the artwork. Hosts that don't send it just keep the default tint.
 function extractTint(src) {
   if(!src) return;
   const img=new Image();
+  img.crossOrigin='anonymous';
   img.onload=()=>{
     try {
       const canvas=document.createElement('canvas');canvas.width=canvas.height=24;
@@ -602,17 +551,16 @@ function openNow() {
 function closeNow() {
   $('now').hidden=true;document.body.style.overflow='';$('open-now').focus();
 }
-
 audio.addEventListener('play',paintPlayState);
 audio.addEventListener('pause',paintPlayState);
 audio.addEventListener('waiting',()=>document.body.classList.add('buffering'));
 audio.addEventListener('playing',()=>{
   document.body.classList.remove('buffering');errorStreak=0;
-  // Resolve the next song in the background so skipping feels instant.
+  // Look up the next song's audio in the background so skipping feels instant.
   const upcoming=state.queue[state.index+1];
-  if(upcoming&&!state.offline.has(upcoming.id)&&!warmed.has(upcoming.id)) {
+  if(upcoming&&!warmed.has(upcoming.id)) {
     warmed.add(upcoming.id);
-    fetch('/api/stream/youtube/'+upcoming.id,{headers:{Range:'bytes=0-1'}}).then(r=>r.body?.cancel()).catch(()=>{});
+    fetch('/api/stream/'+upcoming.id,{headers:{Range:'bytes=0-1'}}).then(r=>r.body?.cancel()).catch(()=>{});
   }
 });
 audio.addEventListener('timeupdate',()=>{
@@ -626,7 +574,7 @@ audio.addEventListener('error',()=>{
   document.body.classList.remove('buffering');
   errorStreak++;
   if(errorStreak<3&&state.index<state.queue.length-1) {toast(`Couldn’t play “${track.title}”. Skipping to the next song.`);setTimeout(()=>next(),1200);}
-  else toast(navigator.onLine?`Couldn’t play “${track.title}”. Try another song.`:'You’re offline. Downloaded songs still play — find them in Library.');
+  else toast(navigator.onLine?`Couldn’t play “${track.title}”. Try another song.`:'You’re offline. Connect to the internet to keep listening.');
 });
 
 /* ---------- wiring ---------- */
@@ -650,20 +598,20 @@ $('shuffle').addEventListener('click',toggleShuffle);
 $('repeat').addEventListener('click',cycleRepeat);
 $('mini-love').addEventListener('click',()=>toggleLove(current()));
 $('now-love').addEventListener('click',()=>toggleLove(current()));
-$('now-download').addEventListener('click',()=>{const t=current();if(t)download(t);});
 $('open-now').addEventListener('click',openNow);
 $('close-now').addEventListener('click',closeNow);
 $('toggle-queue').addEventListener('click',()=>{const on=$('now').classList.toggle('show-queue');$('toggle-queue').setAttribute('aria-pressed',String(on));});
-$('playlist-play').addEventListener('click',()=>{const p=state.playlist;if(p?.tracks.length){if(state.shuffle)toggleShuffle();playCollection(p.tracks,0,p.title);}});
-$('playlist-shuffle').addEventListener('click',()=>{const p=state.playlist;if(!p?.tracks.length)return;if(!state.shuffle)toggleShuffle();playCollection(p.tracks,Math.floor(Math.random()*p.tracks.length),p.title);});
-$('playlist-download').addEventListener('click',()=>{if(state.playlist)downloadAll(state.playlist);});
+$('playlist-play').addEventListener('click',()=>{const p=state.playlist;if(p?.tracks?.length){if(state.shuffle)toggleShuffle();playCollection(p.tracks,0,p.title);}});
+$('playlist-shuffle').addEventListener('click',()=>{const p=state.playlist;if(!p?.tracks?.length)return;if(!state.shuffle)toggleShuffle();playCollection(p.tracks,Math.floor(Math.random()*p.tracks.length),p.title);});
 $('playlist-remove').addEventListener('click',()=>{if(state.playlist)removePlaylist(state.playlist);});
 $('playlist-rename').addEventListener('click',()=>{if(state.playlist)renamePlaylist(state.playlist);});
 document.querySelectorAll('[data-new-playlist]').forEach(button=>button.addEventListener('click',()=>createPlaylist()));
-$('name-form').addEventListener('submit',event=>{event.preventDefault();const name=$('playlist-name').value.trim().slice(0,80);if(name)finishName(name);});
+$('name-form').addEventListener('submit',event=>{event.preventDefault();const name=$('playlist-name').value.trim().slice(0,150);if(name)finishName(name);});
 $('name-cancel').addEventListener('click',()=>finishName(null));
 $('name-dialog').addEventListener('cancel',event=>{event.preventDefault();finishName(null);});
 $('name-dialog').addEventListener('close',()=>finishName(null));
+for(const id of ['mini-download','now-download']) $(id).addEventListener('click',()=>{const t=current();if(t)downloadMP3(t);});
+$('playlist-download').addEventListener('click',()=>{if(state.playlist)downloadAll(state.playlist);});
 $('now-add').addEventListener('click',event=>{const t=current();if(t)openTrackMenu(event.currentTarget,t);});
 document.addEventListener('pointerdown',event=>{if(menuAnchor&&!$('menu').contains(event.target)&&!menuAnchor.contains(event.target))closeMenu();});
 window.addEventListener('resize',closeMenu);
@@ -680,7 +628,7 @@ $('volume').addEventListener('input',()=>{audio.volume=Number($('volume').value)
 document.addEventListener('keydown',event=>{
   const typing=event.target.closest?.('input,textarea,select,[contenteditable]');
   if(event.key==='Escape'&&menuAnchor) {closeMenu();return;}
-  if($('name-dialog').open) return;
+  if($('name-dialog').open||$('confirm-dialog').open) return;
   if(event.key==='Escape'&&!$('now').hidden) {closeNow();return;}
   if(typing) return;
   if(event.key===' '&&!event.target.closest('button,[role="listitem"]')) {event.preventDefault();togglePlay();}
@@ -699,6 +647,4 @@ go('home',{push:false});
 fillWall();
 loadShelves();
 lib.playlists.all().then(playlists=>{state.playlists=playlists;renderRail();renderView();})
-  .catch(()=>toast('Browser storage is unavailable, so imported and custom playlists won’t be kept.'));
-refreshDownloads().then(()=>{renderView();updateStorageNote();return moveBrowserDownloads();})
-  .catch(error=>toast(error.message));
+  .catch(()=>toast('Browser storage is unavailable, so your playlists won’t be kept.'));
